@@ -81,7 +81,7 @@ function setupSlider() {
 function updateLabel(mid, range) {
     const nfsMin = Math.round(mid - range / 2);
     const nfsMax = Math.round(mid + range / 2);
-    const direction = mid > 0 ? 'Later (bullet appears further along)' : mid < 0 ? 'Sooner (bullet appears earlier)' : 'Neutral';
+    const direction = mid > 0 ? 'Later (bullet appears later)' : mid < 0 ? 'Sooner (bullet appears earlier)' : 'Neutral';
     offsetLabel.textContent = `Offset: ${mid >= 0 ? '+' : ''}${mid} | Min: ${nfsMin} Max: ${nfsMax} | ${direction}`;
 }
 
