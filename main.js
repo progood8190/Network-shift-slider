@@ -1,10 +1,14 @@
-const nfsDiv = document.querySelector('#controls-nfs-min').closest('div');
+(() => {
+  // If a previous version of this snippet is running, tear it down first
+  if (window.__nfsSliderCleanup) window.__nfsSliderCleanup();
 
-const sliderContainer = document.createElement('div');
-sliderContainer.style.cssText = 'margin-top:10px; padding:8px;';
+  const nfsDiv = document.querySelector('#controls-nfs-min').closest('div');
 
-const style = document.createElement('style');
-style.textContent = `
+  const sliderContainer = document.createElement('div');
+  sliderContainer.style.cssText = 'margin-top:10px; padding:8px;';
+
+  const style = document.createElement('style');
+  style.textContent = `
 .nfs-slider {
   -webkit-appearance: none;
   width: 100%;
@@ -37,77 +41,107 @@ style.textContent = `
   cursor: pointer;
 }
 `;
-document.head.appendChild(style);
+  document.head.appendChild(style);
 
-const title = document.createElement('div');
-title.textContent = 'See the bullet sooner or later:';
-title.style.cssText = 'font-size:12px; margin-bottom:5px; color:inherit;';
+  const title = document.createElement('div');
+  title.textContent = 'See the bullet sooner or later:';
+  title.style.cssText = 'font-size:12px; margin-bottom:5px; color:inherit;';
 
-const slider = document.createElement('input');
-slider.type = 'range';
-slider.className = 'nfs-slider';
-slider.id = 'nfs-offset-slider';
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.className = 'nfs-slider';
+  slider.id = 'nfs-offset-slider';
 
-const offsetLabel = document.createElement('div');
-offsetLabel.style.cssText = 'font-size:11px; margin-top:4px; color:inherit; text-align:center;';
+  const offsetLabel = document.createElement('div');
+  offsetLabel.style.cssText = 'font-size:11px; margin-top:4px; color:inherit; text-align:center;';
 
-const minInput = document.querySelector('#controls-nfs-min');
-const maxInput = document.querySelector('#controls-nfs-max');
+  const minInput = document.querySelector('#controls-nfs-min');
+  const maxInput = document.querySelector('#controls-nfs-max');
 
-function getRange() {
+  // Last values we've seen. Lets us notice ANY change to the inputs —
+  // manual typing, a defly command, or another script.
+  let lastMin = null;
+  let lastMax = null;
+
+  function getRange() {
     return parseInt(maxInput.value) - parseInt(minInput.value);
-}
-
-function getMidpoint() {
+  }
+  function getMidpoint() {
     return (parseInt(minInput.value) + parseInt(maxInput.value)) / 2;
-}
+  }
 
-function setupSlider() {
-    const range = getRange();
-    const mid = getMidpoint();
-
-    const halfRange = range / 2;
-    const sliderMin = -10 + halfRange;  
-    const sliderMax = 10 - halfRange;   
-
-    slider.min = sliderMin;
-    slider.max = sliderMax;
-    slider.step = 1;
-    slider.value = mid;
-
-    updateLabel(mid, range);
-}
-
-function updateLabel(mid, range) {
+  function updateLabel(mid, range) {
     const nfsMin = Math.round(mid - range / 2);
     const nfsMax = Math.round(mid + range / 2);
     const direction = mid > 0 ? 'Later (bullet appears later)' : mid < 0 ? 'Sooner (bullet appears earlier)' : 'Neutral';
     offsetLabel.textContent = `Offset: ${mid >= 0 ? '+' : ''}${mid} | Min: ${nfsMin} Max: ${nfsMax} | ${direction}`;
-}
+  }
 
-slider.addEventListener('input', () => {
+  // Rebuild the slider's range + thumb position from whatever the inputs say right now
+  function syncSliderToInputs() {
+    const range = getRange();
+    const mid = getMidpoint();
+    if (isNaN(range) || isNaN(mid)) return; // input empty / mid-edit, skip this pass
+
+    const halfRange = range / 2;
+    slider.min = -10 + halfRange;
+    slider.max = 10 - halfRange;
+    slider.step = 1;
+    slider.value = mid;
+
+    updateLabel(mid, range);
+  }
+
+  // The constant scanner: detects any change to either input and re-syncs the slider
+  function scanInputs() {
+    const curMin = minInput.value;
+    const curMax = maxInput.value;
+    if (curMin !== lastMin || curMax !== lastMax) {
+      lastMin = curMin;
+      lastMax = curMax;
+      syncSliderToInputs();
+    }
+  }
+
+  slider.addEventListener('input', () => {
     const mid = parseFloat(slider.value);
     const range = getRange();
     const nfsMin = Math.round(mid - range / 2);
     const nfsMax = Math.round(mid + range / 2);
-
     const clampedMin = Math.max(-10, nfsMin);
     const clampedMax = Math.min(10, nfsMax);
 
     minInput.value = clampedMin;
     maxInput.value = clampedMax;
     defly.changeControls();
+
+    // Record what we just wrote (after defly may have normalized it) so the
+    // scanner doesn't treat our own change as an external one.
+    lastMin = minInput.value;
+    lastMax = maxInput.value;
+
     updateLabel(mid, range);
-});
+  });
 
-minInput.addEventListener('change', () => { setupSlider(); offsetLabel.textContent = 'Slider reset (manual input detected)'; });
-maxInput.addEventListener('change', () => { setupSlider(); offsetLabel.textContent = 'Slider reset (manual input detected)'; });
+  // Initial paint
+  lastMin = minInput.value;
+  lastMax = maxInput.value;
+  syncSliderToInputs();
 
-setupSlider();
+  // Scan ~7x/sec. Cheap, and catches manual edits AND command/script changes.
+  const scanInterval = setInterval(scanInputs, 150);
 
-sliderContainer.appendChild(title);
-sliderContainer.appendChild(slider);
-sliderContainer.appendChild(offsetLabel);
-nfsDiv.appendChild(sliderContainer);
+  sliderContainer.appendChild(title);
+  sliderContainer.appendChild(slider);
+  sliderContainer.appendChild(offsetLabel);
+  nfsDiv.appendChild(sliderContainer);
 
-console.log('NFS slider injected!');
+  // So re-pasting this snippet cleans up the old one instead of stacking duplicates
+  window.__nfsSliderCleanup = () => {
+    clearInterval(scanInterval);
+    sliderContainer.remove();
+    style.remove();
+  };
+
+  console.log('NFS slider injected! Now continuously scanning #controls-nfs-min / #controls-nfs-max.');
+})();
